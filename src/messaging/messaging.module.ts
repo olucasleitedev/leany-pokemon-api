@@ -40,6 +40,6 @@ import { TeamPokemonsModule } from '../team-pokemons/team-pokemons.module';
     forwardRef(() => TeamPokemonsModule),
   ],
   providers: [PokemonSyncPublisher, PokemonSyncConsumer],
-  exports: [PokemonSyncPublisher],
+  exports: [PokemonSyncPublisher, RabbitMQModule],
 })
 export class MessagingModule {}

@@ -25,8 +25,6 @@ export class PokemonSyncConsumer {
     queue: POKEMON_SYNC_QUEUE,
     queueOptions: {
       durable: true,
-      deadLetterExchange: POKEMON_EVENTS_EXCHANGE,
-      deadLetterRoutingKey: 'pokemon.sync.failed',
     },
   })
   async handlePokemonSync(message: PokemonSyncMessage): Promise<void | Nack> {

@@ -1,0 +1,605 @@
+{
+  "info": {
+    "_postman_id": "leany-pokemon-api-collection",
+    "name": "Leany Pokemon API",
+    "description": "Collection completa para testar a API de Treinadores, Times e Pokémon.\n\n## Ordem sugerida\n1. Health Check\n2. Criar Treinador (salva `trainerId`)\n3. Criar Time (salva `teamId`)\n4. Adicionar Pokémon ao time (salva `teamPokemonId`)\n5. Listar Pokémon do time\n6. Demais CRUDs\n\n## Variáveis da collection\n- `baseUrl`: http://localhost:3000\n- `trainerId`, `teamId`, `teamPokemonId`: preenchidos automaticamente pelos scripts de teste",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:3000"
+    },
+    {
+      "key": "trainerId",
+      "value": ""
+    },
+    {
+      "key": "teamId",
+      "value": ""
+    },
+    {
+      "key": "teamPokemonId",
+      "value": ""
+    }
+  ],
+  "item": [
+    {
+      "name": "Health",
+      "item": [
+        {
+          "name": "Health Check",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/health",
+              "host": ["{{baseUrl}}"],
+              "path": ["health"]
+            },
+            "description": "Verifica status do banco PostgreSQL e RabbitMQ."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Treinadores",
+      "item": [
+        {
+          "name": "1. Criar Treinador",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201 || pm.response.code === 200) {",
+                  "    const json = pm.response.json();",
+                  "    pm.collectionVariables.set('trainerId', json.id);",
+                  "    console.log('trainerId salvo:', json.id);",
+                  "}",
+                  "",
+                  "pm.test('Status 201', () => pm.response.to.have.status(201));",
+                  "pm.test('Retorna id', () => pm.expect(pm.response.json().id).to.be.a('string'));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nome\": \"Ash Ketchum\",\n  \"cidadeOrigem\": \"Pallet Town\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/trainers",
+              "host": ["{{baseUrl}}"],
+              "path": ["trainers"]
+            },
+            "description": "Cria um treinador e salva o `trainerId` automaticamente."
+          },
+          "response": []
+        },
+        {
+          "name": "Listar Treinadores",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/trainers",
+              "host": ["{{baseUrl}}"],
+              "path": ["trainers"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Buscar Treinador por ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/trainers/{{trainerId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["trainers", "{{trainerId}}"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Atualizar Treinador",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nome\": \"Ash Ketchum\",\n  \"cidadeOrigem\": \"Cidade de Viridian\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/trainers/{{trainerId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["trainers", "{{trainerId}}"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Remover Treinador",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/trainers/{{trainerId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["trainers", "{{trainerId}}"]
+            },
+            "description": "Remove o treinador e todos os times/pokemon associados (cascade)."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Times",
+      "item": [
+        {
+          "name": "2. Criar Time",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201 || pm.response.code === 200) {",
+                  "    const json = pm.response.json();",
+                  "    pm.collectionVariables.set('teamId', json.id);",
+                  "    console.log('teamId salvo:', json.id);",
+                  "}",
+                  "",
+                  "pm.test('Status 201', () => pm.response.to.have.status(201));",
+                  "pm.test('Retorna id', () => pm.expect(pm.response.json().id).to.be.a('string'));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nomeDoTime\": \"Time Inicial\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/trainers/{{trainerId}}/teams",
+              "host": ["{{baseUrl}}"],
+              "path": ["trainers", "{{trainerId}}", "teams"]
+            },
+            "description": "Cria um time para o treinador e salva o `teamId` automaticamente."
+          },
+          "response": []
+        },
+        {
+          "name": "Listar Times do Treinador",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/trainers/{{trainerId}}/teams",
+              "host": ["{{baseUrl}}"],
+              "path": ["trainers", "{{trainerId}}", "teams"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Buscar Time por ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/teams/{{teamId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["teams", "{{teamId}}"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Atualizar Time",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nomeDoTime\": \"Time Elétrico\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/teams/{{teamId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["teams", "{{teamId}}"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Remover Time",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/teams/{{teamId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["teams", "{{teamId}}"]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Pokémon do Time",
+      "item": [
+        {
+          "name": "3. Adicionar Pikachu",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201 || pm.response.code === 200) {",
+                  "    const json = pm.response.json();",
+                  "    pm.collectionVariables.set('teamPokemonId', json.id);",
+                  "    console.log('teamPokemonId salvo:', json.id);",
+                  "}",
+                  "",
+                  "pm.test('Status 201', () => pm.response.to.have.status(201));",
+                  "pm.test('syncStatus presente', () => pm.expect(pm.response.json().syncStatus).to.exist);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"pokemonIdOuNome\": \"pikachu\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/teams/{{teamId}}/pokemons",
+              "host": ["{{baseUrl}}"],
+              "path": ["teams", "{{teamId}}", "pokemons"]
+            },
+            "description": "Valida na PokéAPI, publica na fila RabbitMQ e salva `teamPokemonId`."
+          },
+          "response": []
+        },
+        {
+          "name": "4. Adicionar Charizard",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"pokemonIdOuNome\": \"charizard\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/teams/{{teamId}}/pokemons",
+              "host": ["{{baseUrl}}"],
+              "path": ["teams", "{{teamId}}", "pokemons"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "5. Adicionar Pokémon por ID (25 = Pikachu)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"pokemonIdOuNome\": \"25\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/teams/{{teamId}}/pokemons",
+              "host": ["{{baseUrl}}"],
+              "path": ["teams", "{{teamId}}", "pokemons"]
+            },
+            "description": "Testa adicionar Pokémon pelo ID numérico da PokéAPI."
+          },
+          "response": []
+        },
+        {
+          "name": "6. Listar Pokémon do Time",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Retorna array', () => pm.expect(pm.response.json()).to.be.an('array'));",
+                  "",
+                  "const pokemons = pm.response.json();",
+                  "if (pokemons.length > 0 && pokemons[0].id) {",
+                  "    pm.collectionVariables.set('teamPokemonId', pokemons[0].id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/teams/{{teamId}}/pokemons",
+              "host": ["{{baseUrl}}"],
+              "path": ["teams", "{{teamId}}", "pokemons"]
+            },
+            "description": "Lista Pokémon com detalhes enriquecidos da PokéAPI (nome, tipos, sprite)."
+          },
+          "response": []
+        },
+        {
+          "name": "7. Remover Pokémon do Time",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/teams/{{teamId}}/pokemons/{{teamPokemonId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["teams", "{{teamId}}", "pokemons", "{{teamPokemonId}}"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "[Erro] Pokémon inexistente",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"pokemonIdOuNome\": \"pokemon-que-nao-existe-xyz\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/teams/{{teamId}}/pokemons",
+              "host": ["{{baseUrl}}"],
+              "path": ["teams", "{{teamId}}", "pokemons"]
+            },
+            "description": "Deve retornar 404 - Pokémon não encontrado na PokéAPI."
+          },
+          "response": []
+        },
+        {
+          "name": "[Erro] Pokémon duplicado no time",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"pokemonIdOuNome\": \"pikachu\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/teams/{{teamId}}/pokemons",
+              "host": ["{{baseUrl}}"],
+              "path": ["teams", "{{teamId}}", "pokemons"]
+            },
+            "description": "Deve retornar 409 - Pokémon já está no time."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Fluxo Completo (Runner)",
+      "item": [
+        {
+          "name": "Rodar fluxo completo",
+          "item": [
+            {
+              "name": "01 - Health Check",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/health",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["health"]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "02 - Criar Treinador",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "const json = pm.response.json();",
+                      "pm.collectionVariables.set('trainerId', json.id);"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"nome\": \"Ash Ketchum\",\n  \"cidadeOrigem\": \"Pallet Town\"\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/trainers",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["trainers"]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "03 - Criar Time",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "const json = pm.response.json();",
+                      "pm.collectionVariables.set('teamId', json.id);"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"nomeDoTime\": \"Time Inicial\"\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/trainers/{{trainerId}}/teams",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["trainers", "{{trainerId}}", "teams"]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "04 - Adicionar Pikachu",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "const json = pm.response.json();",
+                      "pm.collectionVariables.set('teamPokemonId', json.id);"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"pokemonIdOuNome\": \"pikachu\"\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/teams/{{teamId}}/pokemons",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["teams", "{{teamId}}", "pokemons"]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "05 - Adicionar Charizard",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"pokemonIdOuNome\": \"charizard\"\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/teams/{{teamId}}/pokemons",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["teams", "{{teamId}}", "pokemons"]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "06 - Listar Pokémon (aguardar sync)",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/teams/{{teamId}}/pokemons",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["teams", "{{teamId}}", "pokemons"]
+                },
+                "description": "Aguarde 2-3 segundos após adicionar para syncStatus=synced e detalhes preenchidos."
+              },
+              "response": []
+            }
+          ],
+          "description": "Use o Collection Runner do Postman nesta pasta para rodar tudo em sequência."
+        }
+      ]
+    }
+  ]
+}
