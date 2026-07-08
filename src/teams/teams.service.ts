@@ -1,7 +1,6 @@
 import {
   Injectable,
   NotFoundException,
-  BadRequestException,
 } from '@nestjs/common';
 import { TeamsRepository } from './teams.repository';
 import { TrainersRepository } from '../trainers/trainers.repository';
@@ -44,7 +43,10 @@ export class TeamsService {
   async update(id: string, dto: UpdateTeamDto): Promise<TeamResponseDto> {
     await this.findOne(id);
     const updated = await this.teamsRepository.update(id, dto);
-    return TeamResponseDto.fromEntity(updated!);
+    if (!updated) {
+      throw new NotFoundException(`Time ${id} não encontrado`);
+    }
+    return TeamResponseDto.fromEntity(updated);
   }
 
   async remove(id: string): Promise<void> {
@@ -55,9 +57,7 @@ export class TeamsService {
   private async ensureTrainerExists(trainerId: string): Promise<void> {
     const trainer = await this.trainersRepository.findById(trainerId);
     if (!trainer) {
-      throw new BadRequestException(
-        `Treinador ${trainerId} não encontrado`,
-      );
+      throw new NotFoundException(`Treinador ${trainerId} não encontrado`);
     }
   }
 }

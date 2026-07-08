@@ -74,7 +74,7 @@ export class PokeApiService {
       tipos: pokemon.types.map((entry) => entry.type.name),
       sprite: pokemon.sprites.front_default ?? '',
       habilidades: pokemon.abilities.map((entry) => entry.ability.name),
-      identifier: this.normalizeIdentifier(originalIdentifier),
+      identifier: pokemon.name.toLowerCase(),
     };
   }
 

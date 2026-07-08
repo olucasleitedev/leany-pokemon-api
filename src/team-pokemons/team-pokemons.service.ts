@@ -5,6 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { DataSource, QueryFailedError } from 'typeorm';
 import { TeamPokemonsRepository } from './team-pokemons.repository';
 import { TeamsRepository } from '../teams/teams.repository';
 import { PokeApiService } from '../poke-api/poke-api.service';
@@ -14,7 +15,6 @@ import { AddTeamPokemonDto } from './dto/add-team-pokemon.dto';
 import { TeamPokemonDetailsDto } from './dto/team-pokemon-details.dto';
 import { TeamPokemon } from './entities/team-pokemon.entity';
 import { PokemonCache } from '../pokemon-cache/entities/pokemon-cache.entity';
-import { PokemonSyncStatus } from '../common/enums/pokemon-sync-status.enum';
 
 @Injectable()
 export class TeamPokemonsService {
@@ -27,9 +27,10 @@ export class TeamPokemonsService {
     private readonly pokemonCacheService: PokemonCacheService,
     private readonly pokemonSyncPublisher: PokemonSyncPublisher,
     private readonly configService: ConfigService,
+    private readonly dataSource: DataSource,
   ) {
-    this.maxPokemonPerTeam = Number(
-      this.configService.get('MAX_POKEMON_PER_TEAM', 6),
+    this.maxPokemonPerTeam = this.parseMaxPokemonPerTeam(
+      this.configService.get<string>('MAX_POKEMON_PER_TEAM', '6'),
     );
   }
 
@@ -38,20 +39,66 @@ export class TeamPokemonsService {
     dto: AddTeamPokemonDto,
   ): Promise<TeamPokemonDetailsDto> {
     await this.ensureTeamExists(teamId);
-    await this.ensurePokemonExistsInPokeApi(dto.pokemonIdOuNome);
-    await this.ensureTeamCapacity(teamId);
-    await this.ensurePokemonNotInTeam(teamId, dto.pokemonIdOuNome);
 
-    const normalizedIdentifier = dto.pokemonIdOuNome.trim().toLowerCase();
-    const teamPokemon = await this.teamPokemonsRepository.create(
-      teamId,
-      normalizedIdentifier,
+    const summary = await this.pokeApiService.fetchPokemonSummary(
+      dto.pokemonIdOuNome,
     );
+    const canonicalIdentifier = summary.identifier;
 
-    await this.pokemonSyncPublisher.publishSync({
-      teamPokemonId: teamPokemon.id,
-      pokemonIdentifier: normalizedIdentifier,
-    });
+    let teamPokemon: TeamPokemon;
+
+    try {
+      teamPokemon = await this.dataSource.transaction(async (manager) => {
+        const count = await this.teamPokemonsRepository.countByTeamId(
+          teamId,
+          manager,
+        );
+
+        if (count >= this.maxPokemonPerTeam) {
+          throw new BadRequestException(
+            `O time já atingiu o limite de ${this.maxPokemonPerTeam} Pokémon`,
+          );
+        }
+
+        const exists = await manager.count(TeamPokemon, {
+          where: { timeId: teamId, pokemonIdOuNome: canonicalIdentifier },
+        });
+
+        if (exists > 0) {
+          throw new ConflictException(
+            `O Pokémon "${canonicalIdentifier}" já faz parte deste time`,
+          );
+        }
+
+        return this.teamPokemonsRepository.create(
+          teamId,
+          canonicalIdentifier,
+          manager,
+        );
+      });
+    } catch (error) {
+      if (
+        error instanceof QueryFailedError &&
+        (error as QueryFailedError & { code?: string }).code === '23505'
+      ) {
+        throw new ConflictException(
+          `O Pokémon "${canonicalIdentifier}" já faz parte deste time`,
+        );
+      }
+      throw error;
+    }
+
+    try {
+      await this.pokemonSyncPublisher.publishSync({
+        teamPokemonId: teamPokemon.id,
+        pokemonIdentifier: canonicalIdentifier,
+      });
+    } catch {
+      await this.teamPokemonsRepository.delete(teamPokemon.id);
+      throw new BadRequestException(
+        'Pokémon salvo, mas falha ao publicar sincronização no RabbitMQ. Tente novamente.',
+      );
+    }
 
     return this.toDetailsDto(teamPokemon);
   }
@@ -85,43 +132,20 @@ export class TeamPokemonsService {
     await this.teamPokemonsRepository.delete(teamPokemonId);
   }
 
+  private parseMaxPokemonPerTeam(raw: string): number {
+    const parsed = Number(raw);
+    if (!Number.isInteger(parsed) || parsed < 1) {
+      throw new Error(
+        `MAX_POKEMON_PER_TEAM inválido: "${raw}". Use um número inteiro maior que zero.`,
+      );
+    }
+    return parsed;
+  }
+
   private async ensureTeamExists(teamId: string): Promise<void> {
     const team = await this.teamsRepository.findById(teamId);
     if (!team) {
       throw new NotFoundException(`Time ${teamId} não encontrado`);
-    }
-  }
-
-  private async ensurePokemonExistsInPokeApi(identifier: string): Promise<void> {
-    const exists = await this.pokeApiService.exists(identifier);
-    if (!exists) {
-      throw new NotFoundException(
-        `Pokémon "${identifier}" não encontrado na PokéAPI`,
-      );
-    }
-  }
-
-  private async ensureTeamCapacity(teamId: string): Promise<void> {
-    const count = await this.teamPokemonsRepository.countByTeamId(teamId);
-    if (count >= this.maxPokemonPerTeam) {
-      throw new BadRequestException(
-        `O time já atingiu o limite de ${this.maxPokemonPerTeam} Pokémon`,
-      );
-    }
-  }
-
-  private async ensurePokemonNotInTeam(
-    teamId: string,
-    pokemonIdOuNome: string,
-  ): Promise<void> {
-    const exists = await this.teamPokemonsRepository.existsInTeam(
-      teamId,
-      pokemonIdOuNome,
-    );
-    if (exists) {
-      throw new ConflictException(
-        `O Pokémon "${pokemonIdOuNome}" já faz parte deste time`,
-      );
     }
   }
 

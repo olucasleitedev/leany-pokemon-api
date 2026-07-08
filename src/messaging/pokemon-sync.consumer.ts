@@ -44,12 +44,7 @@ export class PokemonSyncConsumer {
         error instanceof Error ? error.stack : undefined,
       );
 
-      await this.teamPokemonsRepository.updateSyncStatus(
-        message.teamPokemonId,
-        PokemonSyncStatus.FAILED,
-      );
-
-      return new Nack(false);
+      return new Nack(true);
     }
   }
 }

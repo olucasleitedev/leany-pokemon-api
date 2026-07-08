@@ -3,6 +3,7 @@ import {
   Controller,
   Delete,
   Get,
+  HttpCode,
   Param,
   ParseUUIDPipe,
   Post,
@@ -18,6 +19,7 @@ export class TeamPokemonsController {
   constructor(private readonly teamPokemonsService: TeamPokemonsService) {}
 
   @Post()
+  @HttpCode(201)
   @ApiOperation({ summary: 'Adicionar Pokémon ao time' })
   @ApiResponse({ status: 201, type: TeamPokemonDetailsDto })
   addPokemon(
@@ -37,6 +39,7 @@ export class TeamPokemonsController {
   }
 
   @Delete(':teamPokemonId')
+  @HttpCode(204)
   @ApiOperation({ summary: 'Remover Pokémon do time' })
   @ApiResponse({ status: 204 })
   async removePokemon(

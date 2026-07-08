@@ -3,6 +3,7 @@ import {
   Controller,
   Delete,
   Get,
+  HttpCode,
   Param,
   ParseUUIDPipe,
   Patch,
@@ -20,6 +21,7 @@ export class TrainersController {
   constructor(private readonly trainersService: TrainersService) {}
 
   @Post()
+  @HttpCode(201)
   @ApiOperation({ summary: 'Criar treinador' })
   @ApiResponse({ status: 201, type: TrainerResponseDto })
   create(@Body() dto: CreateTrainerDto): Promise<TrainerResponseDto> {
@@ -53,6 +55,7 @@ export class TrainersController {
   }
 
   @Delete(':id')
+  @HttpCode(204)
   @ApiOperation({ summary: 'Remover treinador' })
   @ApiResponse({ status: 204 })
   async remove(@Param('id', ParseUUIDPipe) id: string): Promise<void> {
