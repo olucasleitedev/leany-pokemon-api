@@ -5,11 +5,13 @@ import {
   JoinColumn,
   ManyToOne,
   PrimaryGeneratedColumn,
+  Unique,
 } from 'typeorm';
 import { Team } from '../../teams/entities/team.entity';
 import { PokemonSyncStatus } from '../../common/enums/pokemon-sync-status.enum';
 
 @Entity('team_pokemons')
+@Unique(['timeId', 'pokemonIdOuNome'])
 export class TeamPokemon {
   @PrimaryGeneratedColumn('uuid')
   id: string;

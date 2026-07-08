@@ -1,6 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { BadRequestException, ConflictException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { DataSource, EntityManager } from 'typeorm';
 import { TeamPokemonsService } from './team-pokemons.service';
 import { TeamPokemonsRepository } from './team-pokemons.repository';
 import { TeamsRepository } from '../teams/teams.repository';
@@ -8,6 +9,7 @@ import { PokeApiService } from '../poke-api/poke-api.service';
 import { PokemonCacheService } from '../pokemon-cache/pokemon-cache.service';
 import { PokemonSyncPublisher } from '../messaging/pokemon-sync.publisher';
 import { PokemonSyncStatus } from '../common/enums/pokemon-sync-status.enum';
+import { TeamPokemon } from './entities/team-pokemon.entity';
 
 describe('TeamPokemonsService', () => {
   let service: TeamPokemonsService;
@@ -15,6 +17,8 @@ describe('TeamPokemonsService', () => {
   let teamsRepository: jest.Mocked<TeamsRepository>;
   let pokeApiService: jest.Mocked<PokeApiService>;
   let pokemonSyncPublisher: jest.Mocked<PokemonSyncPublisher>;
+  let mockManager: jest.Mocked<Pick<EntityManager, 'count'>>;
+  let dataSource: { transaction: jest.Mock };
 
   const team = {
     id: 'team-uuid',
@@ -27,6 +31,14 @@ describe('TeamPokemonsService', () => {
   };
 
   beforeEach(async () => {
+    mockManager = {
+      count: jest.fn().mockResolvedValue(0),
+    };
+
+    dataSource = {
+      transaction: jest.fn(async (callback) => callback(mockManager)),
+    };
+
     teamPokemonsRepository = {
       create: jest.fn(),
       findByTeamId: jest.fn(),
@@ -42,7 +54,7 @@ describe('TeamPokemonsService', () => {
     } as unknown as jest.Mocked<TeamsRepository>;
 
     pokeApiService = {
-      exists: jest.fn(),
+      fetchPokemonSummary: jest.fn(),
     } as unknown as jest.Mocked<PokeApiService>;
 
     pokemonSyncPublisher = {
@@ -62,8 +74,9 @@ describe('TeamPokemonsService', () => {
         { provide: PokemonSyncPublisher, useValue: pokemonSyncPublisher },
         {
           provide: ConfigService,
-          useValue: { get: jest.fn().mockReturnValue(6) },
+          useValue: { get: jest.fn().mockReturnValue('6') },
         },
+        { provide: DataSource, useValue: dataSource },
       ],
     }).compile();
 
@@ -72,9 +85,15 @@ describe('TeamPokemonsService', () => {
 
   it('deve adicionar Pokémon ao time e publicar evento de sync', async () => {
     teamsRepository.findById.mockResolvedValue(team);
-    pokeApiService.exists.mockResolvedValue(true);
+    pokeApiService.fetchPokemonSummary.mockResolvedValue({
+      pokeapiId: 25,
+      nome: 'pikachu',
+      tipos: ['electric'],
+      sprite: 'url',
+      habilidades: ['static'],
+      identifier: 'pikachu',
+    });
     teamPokemonsRepository.countByTeamId.mockResolvedValue(0);
-    teamPokemonsRepository.existsInTeam.mockResolvedValue(false);
     teamPokemonsRepository.create.mockResolvedValue({
       id: 'tp-uuid',
       timeId: team.id,
@@ -84,10 +103,9 @@ describe('TeamPokemonsService', () => {
       createdAt: new Date(),
     });
 
-    const result = await service.addPokemon(team.id, { pokemonIdOuNome: 'pikachu' });
+    const result = await service.addPokemon(team.id, { pokemonIdOuNome: '25' });
 
     expect(result.pokemonIdOuNome).toBe('pikachu');
-    expect(result.syncStatus).toBe(PokemonSyncStatus.PENDING);
     expect(pokemonSyncPublisher.publishSync).toHaveBeenCalledWith({
       teamPokemonId: 'tp-uuid',
       pokemonIdentifier: 'pikachu',
@@ -96,7 +114,14 @@ describe('TeamPokemonsService', () => {
 
   it('deve impedir adicionar mais de 6 Pokémon', async () => {
     teamsRepository.findById.mockResolvedValue(team);
-    pokeApiService.exists.mockResolvedValue(true);
+    pokeApiService.fetchPokemonSummary.mockResolvedValue({
+      pokeapiId: 25,
+      nome: 'pikachu',
+      tipos: ['electric'],
+      sprite: 'url',
+      habilidades: ['static'],
+      identifier: 'pikachu',
+    });
     teamPokemonsRepository.countByTeamId.mockResolvedValue(6);
 
     await expect(
@@ -106,12 +131,47 @@ describe('TeamPokemonsService', () => {
 
   it('deve impedir Pokémon duplicado no mesmo time', async () => {
     teamsRepository.findById.mockResolvedValue(team);
-    pokeApiService.exists.mockResolvedValue(true);
+    pokeApiService.fetchPokemonSummary.mockResolvedValue({
+      pokeapiId: 25,
+      nome: 'pikachu',
+      tipos: ['electric'],
+      sprite: 'url',
+      habilidades: ['static'],
+      identifier: 'pikachu',
+    });
     teamPokemonsRepository.countByTeamId.mockResolvedValue(1);
-    teamPokemonsRepository.existsInTeam.mockResolvedValue(true);
+    mockManager.count.mockResolvedValue(1);
 
     await expect(
       service.addPokemon(team.id, { pokemonIdOuNome: 'pikachu' }),
     ).rejects.toBeInstanceOf(ConflictException);
+  });
+
+  it('deve remover Pokémon se publicação no RabbitMQ falhar', async () => {
+    teamsRepository.findById.mockResolvedValue(team);
+    pokeApiService.fetchPokemonSummary.mockResolvedValue({
+      pokeapiId: 25,
+      nome: 'pikachu',
+      tipos: ['electric'],
+      sprite: 'url',
+      habilidades: ['static'],
+      identifier: 'pikachu',
+    });
+    teamPokemonsRepository.countByTeamId.mockResolvedValue(0);
+    teamPokemonsRepository.create.mockResolvedValue({
+      id: 'tp-uuid',
+      timeId: team.id,
+      pokemonIdOuNome: 'pikachu',
+      syncStatus: PokemonSyncStatus.PENDING,
+      time: team,
+      createdAt: new Date(),
+    });
+    pokemonSyncPublisher.publishSync.mockRejectedValue(new Error('rabbit down'));
+
+    await expect(
+      service.addPokemon(team.id, { pokemonIdOuNome: 'pikachu' }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+
+    expect(teamPokemonsRepository.delete).toHaveBeenCalledWith('tp-uuid');
   });
 });

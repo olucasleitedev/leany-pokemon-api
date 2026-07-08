@@ -3,6 +3,7 @@ import {
   Controller,
   Delete,
   Get,
+  HttpCode,
   Param,
   ParseUUIDPipe,
   Patch,
@@ -20,6 +21,7 @@ export class TeamsController {
   constructor(private readonly teamsService: TeamsService) {}
 
   @Post('trainers/:trainerId/teams')
+  @HttpCode(201)
   @ApiOperation({ summary: 'Criar time para um treinador' })
   @ApiResponse({ status: 201, type: TeamResponseDto })
   createForTrainer(
@@ -56,6 +58,7 @@ export class TeamsController {
   }
 
   @Delete('teams/:id')
+  @HttpCode(204)
   @ApiOperation({ summary: 'Remover time' })
   @ApiResponse({ status: 204 })
   async remove(@Param('id', ParseUUIDPipe) id: string): Promise<void> {

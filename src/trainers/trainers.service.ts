@@ -29,7 +29,10 @@ export class TrainersService {
   async update(id: string, dto: UpdateTrainerDto): Promise<TrainerResponseDto> {
     await this.findOne(id);
     const updated = await this.trainersRepository.update(id, dto);
-    return TrainerResponseDto.fromEntity(updated!);
+    if (!updated) {
+      throw new NotFoundException(`Treinador ${id} não encontrado`);
+    }
+    return TrainerResponseDto.fromEntity(updated);
   }
 
   async remove(id: string): Promise<void> {
