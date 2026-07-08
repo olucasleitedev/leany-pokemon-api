@@ -17,7 +17,7 @@ async function bootstrap() {
   const swaggerConfig = new DocumentBuilder()
     .setTitle('Leany Pokémon Teams API')
     .setDescription(
-      'API RESTful para gerenciar Treinadores, Times e Pokémon com integração à PokéAPI e enriquecimento assíncrono via RabbitMQ.',
+      'API para gerenciar Treinadores, Times e Pokémon com integração à PokéAPI.',
     )
     .setVersion('1.0')
     .addTag('Treinadores')

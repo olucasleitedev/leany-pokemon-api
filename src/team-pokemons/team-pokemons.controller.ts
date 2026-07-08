@@ -18,11 +18,7 @@ export class TeamPokemonsController {
   constructor(private readonly teamPokemonsService: TeamPokemonsService) {}
 
   @Post()
-  @ApiOperation({
-    summary: 'Adicionar Pokémon ao time',
-    description:
-      'Valida na PokéAPI, persiste a referência e publica evento no RabbitMQ para enriquecimento assíncrono.',
-  })
+  @ApiOperation({ summary: 'Adicionar Pokémon ao time' })
   @ApiResponse({ status: 201, type: TeamPokemonDetailsDto })
   addPokemon(
     @Param('teamId', ParseUUIDPipe) teamId: string,
@@ -32,11 +28,7 @@ export class TeamPokemonsController {
   }
 
   @Get()
-  @ApiOperation({
-    summary: 'Listar Pokémon do time com detalhes enriquecidos',
-    description:
-      'Retorna dados do cache local (alimentado via fila RabbitMQ). Pokémon recém-adicionados podem ter syncStatus=pending.',
-  })
+  @ApiOperation({ summary: 'Listar Pokémon do time' })
   @ApiResponse({ status: 200, type: [TeamPokemonDetailsDto] })
   listPokemons(
     @Param('teamId', ParseUUIDPipe) teamId: string,

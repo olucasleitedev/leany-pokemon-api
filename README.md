@@ -1,17 +1,12 @@
 # Leany Pokémon Teams API
 
-API RESTful em **NestJS** para gerenciar Treinadores, Times e Pokémon, com integração à [PokéAPI](https://pokeapi.co/) e enriquecimento assíncrono de dados via **RabbitMQ**.
+API RESTful em NestJS para gerenciar Treinadores, Times e Pokémon, com integração à [PokéAPI](https://pokeapi.co/).
 
-Desenvolvida como solução para o desafio técnico da Leany, indo além dos requisitos com arquitetura orientada a eventos, cache local e testes unitários.
+## Sobre o projeto
 
-## Diferenciais (nível sênior)
+Solução para o desafio técnico da Leany. A API persiste Treinadores e Times no PostgreSQL e consulta a PokéAPI para validar e enriquecer os dados dos Pokémon.
 
-- **RabbitMQ**: ao adicionar um Pokémon ao time, a API valida na PokéAPI de forma síncrona, persiste a referência e publica um evento na fila `pokemon.sync` para enriquecimento assíncrono.
-- **Cache local (`pokemon_cache`)**: detalhes da PokéAPI são armazenados no PostgreSQL, evitando chamadas repetidas e desacoplando leitura de escrita.
-- **Status de sincronização**: cada Pokémon do time expõe `syncStatus` (`pending`, `synced`, `failed`).
-- **Arquitetura em camadas**: Controllers → Services → Repositories, com DTOs em todas as entradas/saídas.
-- **Swagger** em `/docs` e **health check** em `/health`.
-- **Testes unitários** para serviços críticos.
+Para o enriquecimento de detalhes (tipos, sprite, habilidades), optei por processar de forma assíncrona via RabbitMQ, com cache local no banco. A validação de existência do Pokémon continua síncrona, já que é requisito do case.
 
 ## Stack
 
@@ -21,7 +16,6 @@ Desenvolvida como solução para o desafio técnico da Leany, indo além dos req
 - TypeORM
 - Swagger (OpenAPI)
 - class-validator / class-transformer
-- @golevelup/nestjs-rabbitmq
 
 ## Pré-requisitos
 
@@ -29,35 +23,24 @@ Desenvolvida como solução para o desafio técnico da Leany, indo além dos req
 - Docker e Docker Compose
 - npm
 
-## Setup rápido
+## Como rodar
 
 ```bash
-# 1. Clonar o repositório
 git clone https://github.com/olucasleitedev/leany-pokemon-api.git
 cd leany-pokemon-api
 
-# 2. Instalar dependências
 npm install
-
-# 3. Configurar variáveis de ambiente
 cp .env.example .env
 
-# 4. Subir infraestrutura (PostgreSQL + RabbitMQ)
 docker compose up -d
-
-# 5. Rodar a API
 npm run start:dev
 ```
 
-A API estará disponível em `http://localhost:3000` e a documentação Swagger em `http://localhost:3000/docs`.
+- API: http://localhost:3000
+- Swagger: http://localhost:3000/docs
+- RabbitMQ Management: http://localhost:15672 (usuário/senha: `pokemon`)
 
-### RabbitMQ Management UI
-
-- URL: `http://localhost:15672`
-- Usuário: `pokemon`
-- Senha: `pokemon`
-
-## Endpoints principais
+## Endpoints
 
 ### Treinadores
 
@@ -73,7 +56,7 @@ A API estará disponível em `http://localhost:3000` e a documentação Swagger 
 
 | Método | Rota | Descrição |
 |--------|------|-----------|
-| POST | `/trainers/:trainerId/teams` | Criar time para treinador |
+| POST | `/trainers/:trainerId/teams` | Criar time |
 | GET | `/trainers/:trainerId/teams` | Listar times do treinador |
 | GET | `/teams/:id` | Buscar time |
 | PATCH | `/teams/:id` | Atualizar time |
@@ -83,11 +66,11 @@ A API estará disponível em `http://localhost:3000` e a documentação Swagger 
 
 | Método | Rota | Descrição |
 |--------|------|-----------|
-| POST | `/teams/:teamId/pokemons` | Adicionar Pokémon (valida na PokéAPI) |
-| GET | `/teams/:teamId/pokemons` | Listar Pokémon com detalhes enriquecidos |
+| POST | `/teams/:teamId/pokemons` | Adicionar Pokémon ao time |
+| GET | `/teams/:teamId/pokemons` | Listar Pokémon com detalhes da PokéAPI |
 | DELETE | `/teams/:teamId/pokemons/:teamPokemonId` | Remover Pokémon do time |
 
-## Fluxo de adição de Pokémon
+## Fluxo ao adicionar um Pokémon
 
 ```mermaid
 sequenceDiagram
@@ -99,22 +82,21 @@ sequenceDiagram
     participant Consumer
 
     Client->>API: POST /teams/{id}/pokemons
-    API->>PokeAPI: GET /pokemon/{id} (validação)
-    API->>DB: INSERT team_pokemon (syncStatus=pending)
-    API->>RabbitMQ: publish pokemon.sync.requested
-    API-->>Client: 201 (dados básicos + pending)
+    API->>PokeAPI: GET /pokemon/{id}
+    API->>DB: INSERT team_pokemon
+    API->>RabbitMQ: publish pokemon.sync
+    API-->>Client: 201
 
-    RabbitMQ->>Consumer: consume message
-    Consumer->>PokeAPI: GET /pokemon/{id} (detalhes)
+    RabbitMQ->>Consumer: consume
+    Consumer->>PokeAPI: GET /pokemon/{id}
     Consumer->>DB: UPSERT pokemon_cache
-    Consumer->>DB: UPDATE syncStatus=synced
+    Consumer->>DB: UPDATE sync_status
 ```
 
 ## Modelo de dados
 
 ```
 Trainer (1) ──< (N) Team (1) ──< (N) TeamPokemon >── PokemonCache
-                                                      (via identifier)
 ```
 
 - **Trainer**: `id`, `nome`, `cidadeOrigem`
@@ -122,34 +104,24 @@ Trainer (1) ──< (N) Team (1) ──< (N) TeamPokemon >── PokemonCache
 - **TeamPokemon**: `id`, `timeId`, `pokemonIdOuNome`, `syncStatus`
 - **PokemonCache**: `pokemonIdentifier`, `pokeapiId`, `nome`, `tipos`, `sprite`, `habilidades`
 
-## Decisões de arquitetura
+## Decisões de projeto
 
-### Por que RabbitMQ?
+**RabbitMQ no enriquecimento** — A PokéAPI precisa ser consultada antes de salvar (validação). Porém, buscar tipos, sprite e habilidades no mesmo request deixaria a resposta mais lenta. Separei: o POST valida e responde rápido; um consumer processa o restante em background.
 
-A validação na PokéAPI precisa ser síncrona (garantir que o Pokémon existe antes de persistir), mas o enriquecimento de dados (tipos, sprite, habilidades) pode ser assíncrono. Isso:
+**Cache (`pokemon_cache`)** — Ao listar os Pokémon de um time, os dados vêm do banco em vez de chamar a PokéAPI toda vez. O cache é reutilizado entre times diferentes.
 
-- Reduz latência da resposta HTTP
-- Isola falhas temporárias da PokéAPI no consumer
-- Permite retry via Dead Letter Exchange
-- Demonstra padrão event-driven em produção
+**Camadas** — Controllers recebem requests e validam DTOs. Services concentram regras de negócio. Repositories encapsulam o TypeORM. Entidades do banco não são expostas diretamente na API.
 
-### Por que cache local?
-
-Evita N chamadas à PokéAPI ao listar os 6 Pokémon de um time. O cache é compartilhado entre times (um `pikachu` cacheado serve todos os times).
-
-### Repositórios dedicados
-
-Cada módulo possui um Repository que encapsula o TypeORM, mantendo Services focados em regras de negócio.
+**`syncStatus`** — Indica se os detalhes do Pokémon já foram sincronizados (`pending`, `synced`, `failed`). Útil logo após adicionar um Pokémon, antes do consumer terminar.
 
 ## Scripts
 
 ```bash
-npm run start:dev    # Desenvolvimento com hot-reload
-npm run build        # Build de produção
-npm run start:prod   # Rodar build de produção
-npm run test         # Testes unitários
-npm run test:cov     # Cobertura de testes
-npm run lint         # ESLint
+npm run start:dev    # desenvolvimento
+npm run build        # build
+npm run start:prod   # produção
+npm run test         # testes unitários
+npm run lint         # eslint
 ```
 
 ## Variáveis de ambiente
@@ -166,25 +138,21 @@ npm run lint         # ESLint
 | `POKEAPI_BASE_URL` | `https://pokeapi.co/api/v2` | Base URL da PokéAPI |
 | `MAX_POKEMON_PER_TEAM` | `6` | Limite de Pokémon por time |
 
-## Exemplo de uso
+## Exemplo
 
 ```bash
-# Criar treinador
 curl -X POST http://localhost:3000/trainers \
   -H "Content-Type: application/json" \
   -d '{"nome": "Ash Ketchum", "cidadeOrigem": "Pallet Town"}'
 
-# Criar time
 curl -X POST http://localhost:3000/trainers/{trainerId}/teams \
   -H "Content-Type: application/json" \
   -d '{"nomeDoTime": "Time Inicial"}'
 
-# Adicionar Pokémon
 curl -X POST http://localhost:3000/teams/{teamId}/pokemons \
   -H "Content-Type: application/json" \
   -d '{"pokemonIdOuNome": "pikachu"}'
 
-# Listar Pokémon (aguarde alguns segundos para syncStatus=synced)
 curl http://localhost:3000/teams/{teamId}/pokemons
 ```
 
